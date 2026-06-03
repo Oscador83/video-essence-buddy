@@ -109,10 +109,27 @@ function Index() {
             <button
               type="submit"
               disabled={summaryMut.isPending}
-              className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+              className="group relative inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-[0_4px_0_0_color-mix(in_oklab,var(--primary)_60%,black)] transition-all duration-100 hover:brightness-110 active:translate-y-[3px] active:shadow-[0_1px_0_0_color-mix(in_oklab,var(--primary)_60%,black)] disabled:opacity-60 disabled:active:translate-y-0"
             >
               {summaryMut.isPending ? "Summarizing…" : "Summarize"}
             </button>
+          </div>
+          <div className="mt-2 flex items-center gap-1 px-2 pb-1 pt-2">
+            <span className="mr-1 text-xs text-muted-foreground">Length:</span>
+            {LENGTH_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setLength(opt.value)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                  length === opt.value
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </form>
 
