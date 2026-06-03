@@ -149,18 +149,22 @@ function Index() {
         )}
 
         {videoId && (
-          <section className="animate-fade-in space-y-8 pt-2">
-            <div className="aspect-video w-full overflow-hidden rounded-2xl bg-muted shadow-lg">
-              <iframe
-                className="h-full w-full"
-                src={`https://www.youtube.com/embed/${videoId}`}
-                title="YouTube video"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
+          <section className="animate-fade-in grid grid-cols-1 gap-8 pt-2 lg:grid-cols-[320px_1fr]">
+            {/* Video — compact sidebar */}
+            <div className="space-y-4">
+              <div className="aspect-video overflow-hidden rounded-xl bg-muted shadow-lg lg:aspect-[4/3]">
+                <iframe
+                  className="h-full w-full"
+                  src={`https://www.youtube.com/embed/${videoId}`}
+                  title="YouTube video"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
             </div>
 
-            <div className="space-y-6 rounded-2xl border border-border bg-card p-8 shadow-sm">
+            {/* Summary — generous room */}
+            <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
                 <div>
                   <h3 className="text-xl font-bold text-foreground">
