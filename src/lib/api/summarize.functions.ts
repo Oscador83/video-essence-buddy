@@ -111,8 +111,9 @@ export const summarizeVideo = createServerFn({ method: "POST" })
 RULES:
 - Detect the language of the transcript and write your ENTIRE summary in THAT SAME language.
 - Do not translate to English unless the source is English.
-- Structure: a 2-3 sentence overview, then 5-8 bullet points of key takeaways.
-- Use clear Markdown. No preamble like "Here is the summary".`;
+- Length & structure: ${LENGTH_INSTRUCTIONS[data.length]}
+- Use clear Markdown formatting. When the video presents a list (top N, steps, tips, reasons), render it as a Markdown list — use a numbered list (1. 2. 3.) when order matters or when the speaker explicitly numbers items, otherwise use bullets (- ). Use "## " section headings to group related points when helpful.
+- No preamble like "Here is the summary".`;
 
     const user = `Summarize this YouTube video transcript${
       truncated ? " (note: transcript was truncated to fit)" : ""
