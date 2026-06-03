@@ -127,8 +127,15 @@ function Index() {
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => setLength(opt.value)}
-                    className={`rounded-md px-4 py-1.5 text-sm transition-colors ${
+                    disabled={summaryMut.isPending}
+                    onClick={() => {
+                      setLength(opt.value);
+                      if (url.trim() && summary && opt.value !== length) {
+                        translateMut.reset();
+                        summaryMut.mutate({ url: url.trim(), length: opt.value });
+                      }
+                    }}
+                    className={`cursor-pointer rounded-md px-4 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                       length === opt.value
                         ? "bg-card font-semibold text-primary shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
