@@ -77,109 +77,125 @@ function Index() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-3xl px-4 py-12 md:py-20">
-        <header className="mb-10 text-center">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-            <span className="size-1.5 rounded-full bg-primary" />
-            Powered by AI
+      <div className="mx-auto max-w-4xl space-y-10 px-4 py-12 md:py-16">
+        {/* Hero */}
+        <header className="space-y-4 text-center">
+          <div className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 shadow-sm">
+            <span className="mr-2 h-2 w-2 animate-pulse rounded-full bg-primary" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Powered by AI
+            </span>
           </div>
-          <h1 className="text-balance text-4xl font-semibold tracking-tight md:text-5xl">
+          <h1 className="text-balance text-4xl font-extrabold tracking-tight text-foreground md:text-5xl">
             YouTube Video <span className="text-primary">Summarizer</span>
           </h1>
-          <p className="mx-auto mt-3 max-w-xl text-balance text-muted-foreground">
+          <p className="mx-auto max-w-xl text-balance text-lg text-muted-foreground">
             Paste a YouTube link to get a clean AI summary in the video's
             original language. Translate it to anything you want.
           </p>
         </header>
 
+        {/* Input Card */}
         <form
           onSubmit={onSubmit}
-          className="rounded-2xl border border-border bg-card p-2 shadow-sm"
+          className="rounded-2xl border border-border bg-card p-6 shadow-xl shadow-slate-200/50 md:p-8"
         >
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              type="text"
-              inputMode="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-              className="w-full flex-1 rounded-xl bg-transparent px-4 py-3 text-base outline-none placeholder:text-muted-foreground"
-              required
-            />
-            <button
-              type="submit"
-              disabled={summaryMut.isPending}
-              className="group relative inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-[0_4px_0_0_color-mix(in_oklab,var(--primary)_60%,black)] transition-all duration-100 hover:brightness-110 active:translate-y-[3px] active:shadow-[0_1px_0_0_color-mix(in_oklab,var(--primary)_60%,black)] disabled:opacity-60 disabled:active:translate-y-0"
-            >
-              {summaryMut.isPending ? "Summarizing…" : "Summarize"}
-            </button>
-          </div>
-          <div className="mt-2 flex items-center gap-1 px-2 pb-1 pt-2">
-            <span className="mr-1 text-xs text-muted-foreground">Length:</span>
-            {LENGTH_OPTIONS.map((opt) => (
+          <div className="space-y-6">
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                inputMode="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="w-full rounded-xl border border-border bg-muted py-4 pl-4 pr-36 text-base text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                required
+              />
               <button
-                key={opt.value}
-                type="button"
-                onClick={() => setLength(opt.value)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                  length === opt.value
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                type="submit"
+                disabled={summaryMut.isPending}
+                className="absolute right-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:translate-y-px active:shadow-sm disabled:opacity-60"
               >
-                {opt.label}
+                {summaryMut.isPending ? "Summarizing…" : "Summarize"}
               </button>
-            ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <span className="font-medium text-muted-foreground">Length:</span>
+              <div className="flex rounded-lg bg-muted p-1">
+                {LENGTH_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setLength(opt.value)}
+                    className={`rounded-md px-4 py-1.5 text-sm transition-colors ${
+                      length === opt.value
+                        ? "bg-card font-semibold text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </form>
 
         {summaryMut.isError && (
-          <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
             {(summaryMut.error as Error).message}
           </div>
         )}
 
         {videoId && (
-          <section className="mt-8 space-y-6">
-            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-              <div className="aspect-video w-full">
-                <iframe
-                  className="h-full w-full"
-                  src={`https://www.youtube.com/embed/${videoId}`}
-                  title="YouTube video"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
+          <section className="animate-fade-in space-y-8 pt-2">
+            <div className="aspect-video w-full overflow-hidden rounded-2xl bg-muted shadow-lg">
+              <iframe
+                className="h-full w-full"
+                src={`https://www.youtube.com/embed/${videoId}`}
+                title="YouTube video"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
             </div>
 
-            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs text-muted-foreground">
-                  {detectedLang ? (
-                    <>
-                      Source language:{" "}
-                      <span className="font-medium text-foreground">
-                        {detectedLang}
-                      </span>
-                    </>
-                  ) : (
-                    "Summary"
-                  )}
-                  {translateMut.data && (
-                    <>
-                      {" · Translated to "}
-                      <span className="font-medium text-foreground">
-                        {targetLang}
-                      </span>
-                    </>
+            <div className="space-y-6 rounded-2xl border border-border bg-card p-8 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-foreground">
+                    Video Summary
+                  </h3>
+                  {(detectedLang || translateMut.data) && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {detectedLang && (
+                        <>
+                          Source:{" "}
+                          <span className="font-medium text-foreground">
+                            {detectedLang}
+                          </span>
+                        </>
+                      )}
+                      {translateMut.data && (
+                        <>
+                          {detectedLang && " · "}
+                          Translated to{" "}
+                          <span className="font-medium text-foreground">
+                            {targetLang}
+                          </span>
+                        </>
+                      )}
+                    </p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Translate:
+                  </span>
                   <select
                     value={targetLang}
                     onChange={(e) => setTargetLang(e.target.value)}
-                    className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
+                    className="rounded-lg border border-border bg-muted px-3 py-1.5 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-primary/10"
                   >
                     {POPULAR_LANGS.map((l) => (
                       <option key={l} value={l}>
@@ -197,9 +213,9 @@ function Index() {
                         targetLanguage: targetLang,
                       })
                     }
-                    className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                    className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
                   >
-                    {translateMut.isPending ? "Translating…" : "Translate"}
+                    {translateMut.isPending ? "Translating…" : "Go"}
                   </button>
                   {translateMut.data && (
                     <button
@@ -214,12 +230,12 @@ function Index() {
               </div>
 
               {translateMut.isError && (
-                <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
                   {(translateMut.error as Error).message}
                 </div>
               )}
 
-              <article className="prose prose-sm max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-p:text-foreground prose-li:text-foreground prose-strong:text-foreground prose-ul:list-disc prose-ul:pl-5 prose-ol:list-decimal prose-ol:pl-5 prose-li:my-1 marker:text-primary">
+              <article className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-foreground prose-h2:mb-2 prose-h2:mt-6 prose-h2:text-lg prose-h3:text-base prose-p:leading-relaxed prose-p:text-muted-foreground prose-strong:text-foreground prose-ul:list-disc prose-ul:pl-5 prose-ol:list-decimal prose-ol:pl-5 prose-li:my-1.5 prose-li:text-muted-foreground marker:text-primary">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {displayContent ?? ""}
                 </ReactMarkdown>
@@ -228,7 +244,7 @@ function Index() {
           </section>
         )}
 
-        <footer className="mt-12 text-center text-xs text-muted-foreground">
+        <footer className="text-center text-sm text-muted-foreground">
           Note: YouTube sometimes blocks transcript requests from servers. If
           you get an error, try another video.
         </footer>
