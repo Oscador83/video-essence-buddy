@@ -38,15 +38,24 @@ const POPULAR_LANGS = [
   "Arabic",
 ];
 
+const LENGTH_OPTIONS = [
+  { value: "short", label: "Short" },
+  { value: "standard", label: "Standard" },
+  { value: "detailed", label: "Detailed" },
+] as const;
+type Length = (typeof LENGTH_OPTIONS)[number]["value"];
+
 function Index() {
   const [url, setUrl] = useState("");
   const [targetLang, setTargetLang] = useState("English");
+  const [length, setLength] = useState<Length>("standard");
 
   const summarize = useServerFn(summarizeVideo);
   const translate = useServerFn(translateSummary);
 
   const summaryMut = useMutation({
-    mutationFn: (videoUrl: string) => summarize({ data: { url: videoUrl } }),
+    mutationFn: (vars: { url: string; length: Length }) =>
+      summarize({ data: vars }),
   });
 
   const translateMut = useMutation({
@@ -58,7 +67,7 @@ function Index() {
     e.preventDefault();
     if (!url.trim()) return;
     translateMut.reset();
-    summaryMut.mutate(url.trim());
+    summaryMut.mutate({ url: url.trim(), length });
   };
 
   const summary = summaryMut.data?.summary;
