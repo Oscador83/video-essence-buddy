@@ -114,7 +114,7 @@ function Index() {
               <button
                 type="submit"
                 disabled={summaryMut.isPending}
-                className="absolute right-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:translate-y-px active:shadow-sm disabled:opacity-60"
+                className="absolute right-2 cursor-pointer rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:translate-y-px active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {summaryMut.isPending ? "Summarizing…" : "Summarize"}
               </button>
