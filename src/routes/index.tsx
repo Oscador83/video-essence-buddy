@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import { createParser } from "eventsource-parser";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { summarizeVideo, translateSummary } from "@/lib/api/summarize.functions";
@@ -40,11 +42,23 @@ const LENGTH_OPTIONS = [
 ] as const;
 type Length = (typeof LENGTH_OPTIONS)[number]["value"];
 
+const DETAIL_OPTIONS = [
+  { value: "simple", label: "Simple" },
+  { value: "medium", label: "Medium" },
+  { value: "detailed", label: "Detailed" },
+] as const;
+type Detail = (typeof DETAIL_OPTIONS)[number]["value"];
+
 const HISTORY_KEY = "yt-summarizer-history";
 const THEME_KEY = "yt-summarizer-theme";
 const MAX_HISTORY = 5;
 
-type HistoryItem = { url: string; videoId: string; title?: string; ts: number };
+type HistoryItem = {
+  url: string;
+  videoId: string;
+  title?: string | null;
+  ts: number;
+};
 
 function Index() {
   const [url, setUrl] = useState("");
@@ -54,6 +68,13 @@ function Index() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [dark, setDark] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [visualOpen, setVisualOpen] = useState(false);
+  const [visualDetail, setVisualDetail] = useState<Detail>("medium");
+  const [visualSrc, setVisualSrc] = useState<string | null>(null);
+  const [visualFinal, setVisualFinal] = useState(false);
+  const [visualLoading, setVisualLoading] = useState(false);
+  const [visualError, setVisualError] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
   const summarize = useServerFn(summarizeVideo);
@@ -74,7 +95,9 @@ function Index() {
     try {
       const h = localStorage.getItem(HISTORY_KEY);
       if (h) setHistory(JSON.parse(h));
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     const savedTheme = localStorage.getItem(THEME_KEY);
     const prefersDark =
       savedTheme === "dark" ||
@@ -82,28 +105,34 @@ function Index() {
     setDark(prefersDark);
   }, []);
 
-  // Apply dark class
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
   }, [dark]);
 
-  // Persist + push history on successful summary
+  // Push to history + scroll on new summary
   useEffect(() => {
     if (!summaryMut.data) return;
-    const { videoId } = summaryMut.data;
+    const { videoId, title } = summaryMut.data;
     const submitted = summaryMut.variables?.url ?? url;
     setHistory((prev) => {
       const next = [
-        { url: submitted, videoId, ts: Date.now() },
+        { url: submitted, videoId, title, ts: Date.now() },
         ...prev.filter((p) => p.videoId !== videoId),
       ].slice(0, MAX_HISTORY);
       try {
         localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-      } catch {}
+      } catch {
+        /* ignore */
+      }
       return next;
     });
-    // Scroll to top so user sees the new summary from its beginning
+    // Reset visual + collapse video when a new summary arrives
+    setVideoOpen(false);
+    setVisualOpen(false);
+    setVisualSrc(null);
+    setVisualFinal(false);
+    setVisualError(null);
     topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [summaryMut.data]);
 
@@ -118,20 +147,22 @@ function Index() {
     return () => document.removeEventListener("mousedown", onClick);
   }, [historyOpen]);
 
-  const runSummarize = (overrideUrl?: string, overrideLength?: Length) => {
-    const u = (overrideUrl ?? url).trim();
-    if (!u) return;
-    if (overrideUrl) setUrl(overrideUrl);
-    translateMut.reset();
-    summaryMut.mutate({ url: u, length: overrideLength ?? length });
-  };
+  const runSummarize = useCallback(
+    (overrideUrl?: string, overrideLength?: Length) => {
+      const u = (overrideUrl ?? url).trim();
+      if (!u) return;
+      if (overrideUrl) setUrl(overrideUrl);
+      translateMut.reset();
+      summaryMut.mutate({ url: u, length: overrideLength ?? length });
+    },
+    [url, length, summaryMut, translateMut],
+  );
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     runSummarize();
   };
 
-  // Cmd/Ctrl + Enter shortcut
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
@@ -141,10 +172,12 @@ function Index() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [url, length, summaryMut.isPending]);
+  }, [runSummarize, summaryMut.isPending]);
 
   const summary = summaryMut.data?.summary;
   const videoId = summaryMut.data?.videoId;
+  const videoTitle = summaryMut.data?.title;
+  const videoAuthor = summaryMut.data?.author;
   const detectedLang = summaryMut.data?.detectedLang;
   const displayContent = translateMut.data?.translated ?? summary;
 
@@ -154,15 +187,88 @@ function Index() {
       await navigator.clipboard.writeText(displayContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   };
 
   const clearHistory = () => {
     setHistory([]);
     try {
       localStorage.removeItem(HISTORY_KEY);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   };
+
+  const generateVisual = useCallback(
+    async (detail: Detail) => {
+      if (!summary) return;
+      setVisualOpen(true);
+      setVisualLoading(true);
+      setVisualFinal(false);
+      setVisualError(null);
+      setVisualSrc(null);
+      setVisualDetail(detail);
+      try {
+        const res = await fetch("/api/generate-visual-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ summary, title: videoTitle, detail }),
+        });
+        if (!res.ok || !res.body) {
+          throw new Error(
+            `Image generation failed (${res.status}): ${await res
+              .text()
+              .catch(() => "")}`,
+          );
+        }
+        let sawCompleted = false;
+        const parser = createParser({
+          onEvent(event) {
+            if (
+              event.event !== "image_generation.partial_image" &&
+              event.event !== "image_generation.completed"
+            )
+              return;
+            let payload: { b64_json?: string };
+            try {
+              payload = JSON.parse(event.data);
+            } catch {
+              return;
+            }
+            if (!payload.b64_json) return;
+            const isFinal = event.event === "image_generation.completed";
+            flushSync(() => {
+              setVisualSrc(`data:image/png;base64,${payload.b64_json}`);
+              if (isFinal) setVisualFinal(true);
+            });
+            if (isFinal) sawCompleted = true;
+          },
+        });
+        const reader = res.body
+          .pipeThrough(new TextDecoderStream())
+          .getReader();
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            parser.feed(value);
+          }
+        } finally {
+          reader.cancel().catch(() => {});
+        }
+        if (!sawCompleted) {
+          throw new Error("Image stream ended without a completed event.");
+        }
+      } catch (err) {
+        setVisualError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setVisualLoading(false);
+      }
+    },
+    [summary, videoTitle],
+  );
 
   const InputCard = ({ idSuffix }: { idSuffix: string }) => (
     <form
@@ -297,7 +403,7 @@ function Index() {
                           />
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-xs font-medium text-foreground">
-                              {h.url.replace(/^https?:\/\//, "")}
+                              {h.title ?? h.url.replace(/^https?:\/\//, "")}
                             </div>
                             <div className="text-[10px] text-muted-foreground">
                               {new Date(h.ts).toLocaleString()}
@@ -318,30 +424,12 @@ function Index() {
             className="cursor-pointer rounded-lg border border-border bg-card p-2 text-muted-foreground transition hover:text-foreground"
           >
             {dark ? (
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="4" />
                 <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
               </svg>
             ) : (
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             )}
@@ -357,19 +445,62 @@ function Index() {
         )}
 
         {videoId && (
-          <section className="animate-fade-in grid grid-cols-1 gap-8 pt-2 lg:grid-cols-[320px_1fr]">
-            <div className="space-y-4">
-              <div className="aspect-video overflow-hidden rounded-xl bg-muted shadow-lg lg:aspect-[4/3]">
-                <iframe
-                  className="h-full w-full"
-                  src={`https://www.youtube.com/embed/${videoId}`}
-                  title="YouTube video"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
+          <section className="animate-fade-in space-y-4 pt-2">
+            {/* Collapsible video title bar */}
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <button
+                type="button"
+                onClick={() => setVideoOpen((o) => !o)}
+                className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
+              >
+                <img
+                  src={`https://i.ytimg.com/vi/${videoId}/default.jpg`}
+                  alt=""
+                  className="h-10 w-16 flex-shrink-0 rounded object-cover"
                 />
-              </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-foreground">
+                    {videoTitle ?? "YouTube video"}
+                  </div>
+                  {videoAuthor && (
+                    <div className="truncate text-xs text-muted-foreground">
+                      {videoAuthor}
+                    </div>
+                  )}
+                </div>
+                <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                  {videoOpen ? "Hide" : "Show"} video
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`transition-transform ${videoOpen ? "rotate-180" : ""}`}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </span>
+              </button>
+              {videoOpen && (
+                <div className="border-t border-border bg-muted">
+                  <div className="aspect-video w-full">
+                    <iframe
+                      className="h-full w-full"
+                      src={`https://www.youtube.com/embed/${videoId}`}
+                      title={videoTitle ?? "YouTube video"}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Summary card */}
             <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
                 <div>
@@ -406,16 +537,7 @@ function Index() {
                     title="Copy summary"
                     className="flex cursor-pointer items-center gap-1 rounded-lg border border-border bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                     </svg>
@@ -473,15 +595,103 @@ function Index() {
                 </ReactMarkdown>
               </article>
 
-              <div className="border-t border-border pt-4">
-                <button
-                  type="button"
-                  disabled
-                  title="Coming soon"
-                  className="cursor-not-allowed rounded-lg border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted-foreground opacity-70"
-                >
-                  ✨ Generate visual summary (coming soon)
-                </button>
+              {/* Visual summary */}
+              <div className="border-t border-border pt-5">
+                {!visualOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => generateVisual(visualDetail)}
+                    className="group relative inline-flex cursor-pointer items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-primary via-fuchsia-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-all hover:shadow-xl hover:shadow-primary/40 active:translate-y-px"
+                  >
+                    <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 3l1.9 5.8L20 10l-4.5 3.3L17 19l-5-3-5 3 1.5-5.7L4 10l6.1-1.2z" />
+                    </svg>
+                    Generate visual summary
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h4 className="text-sm font-bold text-foreground">
+                        Visual summary
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Detail:
+                        </span>
+                        <div className="flex rounded-lg bg-muted p-1">
+                          {DETAIL_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              disabled={visualLoading}
+                              onClick={() => generateVisual(opt.value)}
+                              className={`cursor-pointer rounded-md px-3 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                visualDetail === opt.value
+                                  ? "bg-card font-semibold text-primary shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVisualOpen(false);
+                            setVisualSrc(null);
+                            setVisualError(null);
+                          }}
+                          className="cursor-pointer rounded-lg px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+
+                    {visualError && (
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                        {visualError}
+                      </div>
+                    )}
+
+                    <div className="relative overflow-hidden rounded-xl border border-border bg-muted">
+                      {visualSrc ? (
+                        <img
+                          src={visualSrc}
+                          alt="Visual summary"
+                          className={`block h-auto w-full transition-[filter] duration-500 ${
+                            visualFinal ? "blur-0" : "blur-xl"
+                          }`}
+                        />
+                      ) : (
+                        <div className="flex aspect-square items-center justify-center text-sm text-muted-foreground">
+                          {visualLoading
+                            ? "Generating image…"
+                            : "Preparing…"}
+                        </div>
+                      )}
+                      {visualLoading && (
+                        <div className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+                          {visualFinal ? "Finalizing…" : "Rendering…"}
+                        </div>
+                      )}
+                    </div>
+
+                    {visualFinal && visualSrc && (
+                      <div className="flex justify-end">
+                        <a
+                          href={visualSrc}
+                          download={`visual-summary-${videoId}.png`}
+                          className="cursor-pointer rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+                        >
+                          Download PNG
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </section>
