@@ -108,9 +108,13 @@ export const summarizeVideo = createServerFn({ method: "POST" })
     const detectedLang = segments.find((s) => s.lang)?.lang ?? null;
 
     const system = `You are an expert video summarizer.
-RULES:
-- Detect the language of the transcript and write your ENTIRE summary in THAT SAME language.
-- Do not translate to English unless the source is English.
+LANGUAGE RULES (CRITICAL):
+- Detect the language of the transcript.
+- If the transcript is in English, Spanish, Catalan, or French, write the ENTIRE summary in THAT SAME language. Never switch to another language.
+- If the transcript is in any other language, write the summary in English.
+- Never translate between English / Spanish / Catalan / French — preserve the source language exactly.
+- Transcript language hint (from YouTube, may be missing or inaccurate — trust the actual transcript text over this): ${detectedLang ?? "unknown"}.
+STRUCTURE:
 - Length & structure: ${LENGTH_INSTRUCTIONS[data.length]}
 - Use clear Markdown formatting. When the video presents a list (top N, steps, tips, reasons), render it as a Markdown list — use a numbered list (1. 2. 3.) when order matters or when the speaker explicitly numbers items, otherwise use bullets (- ). Use "## " section headings to group related points when helpful.
 - No preamble like "Here is the summary".`;
