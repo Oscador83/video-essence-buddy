@@ -78,13 +78,18 @@ export const summarizeVideo = createServerFn({ method: "POST" })
       throw new Error("Could not parse a YouTube video ID from that input.");
     }
 
+    // Fetch the video title in parallel (oEmbed is public, no key needed)
+    const titlePromise = fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
+    )
+      .then((r) => (r.ok ? (r.json() as Promise<{ title?: string; author_name?: string }>) : null))
+      .catch(() => null);
+
     let segments: Array<{ text: string; lang?: string }> = [];
     try {
       segments = await YoutubeTranscript.fetchTranscript(videoId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Common cases: "Transcript is disabled", "No transcripts available",
-      // or blocking from YouTube (returns empty/HTML).
       throw new Error(
         `Couldn't fetch the transcript. YouTube often blocks server requests (this is a known limitation). Details: ${msg}`,
       );
@@ -93,6 +98,8 @@ export const summarizeVideo = createServerFn({ method: "POST" })
     if (!segments.length) {
       throw new Error("No transcript was returned for this video.");
     }
+
+    const meta = await titlePromise;
 
     const transcript = segments
       .map((s) => s.text)
