@@ -141,6 +141,8 @@ ${transcriptForAI}`;
       videoId,
       summary,
       detectedLang,
+      title: meta?.title ?? null,
+      author: meta?.author_name ?? null,
       transcriptChars: transcript.length,
       truncated,
     };
