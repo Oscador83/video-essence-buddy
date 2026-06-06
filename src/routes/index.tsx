@@ -148,12 +148,16 @@ function Index() {
       }
       return next;
     });
-    // Reset visual + collapse video when a new summary arrives
+    // Reset visual + chat + collapse video when a new summary arrives
     setVideoOpen(false);
     setVisualOpen(false);
     setVisualSrc(null);
     setVisualFinal(false);
     setVisualError(null);
+    setChatOpen(false);
+    setChatMessages([]);
+    setChatInput("");
+    chatMut.reset();
     topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [summaryMut.data]);
 
