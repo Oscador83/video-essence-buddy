@@ -659,9 +659,9 @@ function Index() {
                   <button
                     type="button"
                     onClick={() => generateVisual(visualDetail)}
-                    className="group relative inline-flex cursor-pointer items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-primary via-fuchsia-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-all hover:shadow-xl hover:shadow-primary/40 active:translate-y-px"
+                    className="group relative inline-flex cursor-pointer items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-primary/80 via-fuchsia-500/75 to-pink-500/75 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-primary/10 transition-all hover:shadow-lg hover:shadow-primary/20 hover:brightness-105 active:translate-y-px"
                   >
-                    <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                    <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 3l1.9 5.8L20 10l-4.5 3.3L17 19l-5-3-5 3 1.5-5.7L4 10l6.1-1.2z" />
                     </svg>
@@ -694,6 +694,23 @@ function Index() {
                             </button>
                           ))}
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setDark((d) => !d)}
+                          title={dark ? "Switch to light mode" : "Switch to dark mode"}
+                          className="cursor-pointer rounded-lg border border-border bg-muted p-1.5 text-muted-foreground transition hover:text-foreground"
+                        >
+                          {dark ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="4" />
+                              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                            </svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                            </svg>
+                          )}
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -730,6 +747,10 @@ function Index() {
                             : "Preparing…"}
                         </div>
                       )}
+                      {/* Model badge top-right */}
+                      <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                        {IMAGE_MODEL_LABEL}
+                      </div>
                       {visualLoading && (
                         <div className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
                           {visualFinal ? "Finalizing…" : "Rendering…"}
@@ -738,7 +759,20 @@ function Index() {
                     </div>
 
                     {visualFinal && visualSrc && (
-                      <div className="flex justify-end">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={openImageInNewWindow}
+                          title="Open in a new window so you can zoom, pan, or drag it to another screen"
+                          className="flex cursor-pointer items-center gap-1 rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15 3h6v6" />
+                            <path d="M10 14L21 3" />
+                            <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+                          </svg>
+                          Open in new window
+                        </button>
                         <a
                           href={visualSrc}
                           download={`visual-summary-${videoId}.png`}
@@ -751,6 +785,106 @@ function Index() {
                   </div>
                 )}
               </div>
+
+              {/* Ask AI about the video */}
+              {transcript && (
+                <div className="border-t border-border pt-5">
+                  {!chatOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => setChatOpen(true)}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-muted px-4 py-2 text-sm font-medium text-foreground transition hover:bg-card"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                      Ask AI about this video
+                    </button>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-bold text-foreground">
+                          Ask AI about this video
+                        </h4>
+                        <span className="text-[11px] text-muted-foreground">
+                          Model: <span className="font-medium text-foreground">{TEXT_MODEL_LABEL}</span>
+                        </span>
+                      </div>
+
+                      {chatMessages.length > 0 && (
+                        <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+                          {chatMessages.map((m, i) => (
+                            <div
+                              key={i}
+                              className={`rounded-lg px-3 py-2 text-sm ${
+                                m.role === "user"
+                                  ? "bg-primary/10 text-foreground"
+                                  : "bg-card text-foreground"
+                              }`}
+                            >
+                              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                {m.role === "user" ? "You" : "AI"}
+                              </div>
+                              <div className="prose-sm text-[0.9rem] leading-relaxed [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {m.content}
+                                </ReactMarkdown>
+                              </div>
+                            </div>
+                          ))}
+                          {chatMut.isPending && (
+                            <div className="px-3 py-1 text-xs text-muted-foreground">
+                              Thinking…
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {chatMut.isError && (
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                          {(chatMut.error as Error).message}
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              sendChat();
+                            }
+                          }}
+                          placeholder="Ask anything about the video…"
+                          className="flex-1 rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={sendChat}
+                          disabled={!chatInput.trim() || chatMut.isPending}
+                          className="cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Send
+                        </button>
+                        {chatMessages.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setChatMessages([]);
+                              chatMut.reset();
+                            }}
+                            className="cursor-pointer rounded-lg px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
         )}
