@@ -563,27 +563,29 @@ function Index() {
                   <h3 className="text-xl font-bold text-foreground">
                     Video Summary
                   </h3>
-                  {(detectedLang || translateMut.data) && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {detectedLang && (
-                        <>
-                          Source:{" "}
-                          <span className="font-medium text-foreground">
-                            {detectedLang}
-                          </span>
-                        </>
-                      )}
-                      {translateMut.data && (
-                        <>
-                          {detectedLang && " · "}
-                          Translated to{" "}
-                          <span className="font-medium text-foreground">
-                            {targetLang}
-                          </span>
-                        </>
-                      )}
-                    </p>
-                  )}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {detectedLang && (
+                      <>
+                        Source:{" "}
+                        <span className="font-medium text-foreground">
+                          {detectedLang}
+                        </span>
+                        {" · "}
+                      </>
+                    )}
+                    {translateMut.data && (
+                      <>
+                        Translated to{" "}
+                        <span className="font-medium text-foreground">
+                          {targetLang}
+                        </span>
+                        {" · "}
+                      </>
+                    )}
+                    <span title="AI model used for the summary">
+                      Model: <span className="font-medium text-foreground">{TEXT_MODEL_LABEL}</span>
+                    </span>
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
