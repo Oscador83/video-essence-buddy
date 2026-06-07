@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { YoutubeTranscript } from "youtube-transcript";
+import { TEXT_MODEL_ID } from "@/lib/models";
+
 
 function extractVideoId(input: string): string | null {
   const trimmed = input.trim();
@@ -33,10 +35,11 @@ async function callLovableAI(messages: Array<{ role: string; content: string }>)
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
+      model: TEXT_MODEL_ID,
       messages,
     }),
   });
+
 
   if (!res.ok) {
     if (res.status === 429) throw new Error("AI rate limit reached. Try again in a minute.");
