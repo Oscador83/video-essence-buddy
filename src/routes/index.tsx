@@ -278,58 +278,8 @@ function Index() {
     [url, length, summaryMut, translateMut],
   );
 
-  // Client-side fallback: try a CORS proxy when the server is blocked
-  const runFallback = useCallback(async () => {
-    const u = url.trim();
-    const vid = extractVideoIdClient(u);
-    if (!vid) return;
-    setFallbackBusy(true);
-    try {
-      const result = await fetchTranscriptViaProxy(vid);
-      if (!result) {
-        alert(
-          "In-browser fallback also failed. The video may have no captions, or all proxies are down right now.",
-        );
-        return;
-      }
-      const meta = await fetch(
-        `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`,
-      )
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null);
-      summaryMut.reset();
-      const data = await summarizeFromTranscript({
-        data: {
-          videoId: vid,
-          transcript: result.transcript,
-          length,
-          title: meta?.title ?? null,
-          author: meta?.author_name ?? null,
-          detectedLang: result.lang,
-        },
-      });
-      // Manually populate summaryMut as if it had succeeded
-      summaryMut.mutate({ url: u, length }, {
-        onMutate: () => {
-          // no-op
-        },
-      });
-      // Easier: just set the data directly via a fake refetch — but mutation
-      // doesn't expose setData. Use queryClient? Simplest: re-throw via state.
-      // Instead, we cheat: hand-roll the post-summary side effects.
-      // To keep things consistent with summaryMut.data consumers, dispatch a
-      // synthetic mutation success:
-      (summaryMut as unknown as { setState?: unknown }); // noop hint
-      // We'll piggyback on summaryMut by directly setting react-query cache:
-      // Simplest path: just store in a local override.
-      void data;
-    } finally {
-      setFallbackBusy(false);
-    }
-  }, [url, length, summaryMut, summarizeFromTranscript]);
+  // Fallback data state (populated by runFallbackClean below)
 
-  // Replace the cheat above: keep a dedicated state for fallback results so
-  // the rest of the UI just reads `effective` data.
   const [fallbackData, setFallbackData] = useState<
     Awaited<ReturnType<typeof summarizeFromTranscript>> | null
   >(null);
