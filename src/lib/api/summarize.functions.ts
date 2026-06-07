@@ -208,3 +208,54 @@ export const translateSummary = createServerFn({ method: "POST" })
     ]);
     return { translated };
   });
+
+// Summarize from a transcript fetched on the client (e.g. via a CORS proxy)
+// when the server-side YouTube fetch is blocked.
+export const summarizeWithTranscript = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      videoId: z.string().min(1).max(64),
+      transcript: z.string().min(20).max(120_000),
+      length: z.enum(LENGTHS).default("standard"),
+      title: z.string().max(300).nullable().optional(),
+      author: z.string().max(200).nullable().optional(),
+      detectedLang: z.string().max(16).nullable().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const cleaned = data.transcript.replace(/\s+/g, " ").trim();
+    const MAX_CHARS = 60_000;
+    const truncated = cleaned.length > MAX_CHARS;
+    const transcriptForAI = truncated ? cleaned.slice(0, MAX_CHARS) : cleaned;
+
+    const system = `You are an expert video summarizer.
+LANGUAGE RULES (CRITICAL):
+- Detect the language of the transcript.
+- If the transcript is in English, Spanish, Catalan, or French, write the ENTIRE summary in THAT SAME language. Never switch.
+- If the transcript is in any other language, write the summary in English.
+- Transcript language hint: ${data.detectedLang ?? "unknown"}.
+STRUCTURE:
+- Length & structure: ${LENGTH_INSTRUCTIONS[data.length]}
+- Use clear Markdown. Use lists for enumerations, "## " headings to group ideas.
+- No preamble like "Here is the summary".`;
+
+    const user = `Summarize this YouTube video transcript${
+      truncated ? " (note: transcript was truncated)" : ""
+    }:\n\n${transcriptForAI}`;
+
+    const summary = await callLovableAI([
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ]);
+
+    return {
+      videoId: data.videoId,
+      summary,
+      detectedLang: data.detectedLang ?? null,
+      title: data.title ?? null,
+      author: data.author ?? null,
+      transcript: transcriptForAI,
+      transcriptChars: cleaned.length,
+      truncated,
+    };
+  });
