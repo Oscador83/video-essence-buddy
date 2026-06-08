@@ -25,7 +25,6 @@ import {
   makeEmptyGlobal,
   makeFilledCard,
   saveSession,
-  clearSession,
 } from "@/lib/session-store";
 import { downloadBlob, openImageInNewTab, dataUrlToBlob } from "@/lib/download";
 import { buildHtmlDoc } from "@/lib/save-html";
