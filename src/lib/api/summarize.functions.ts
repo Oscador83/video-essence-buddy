@@ -6,7 +6,6 @@ import { TEXT_MODEL_ID } from "@/lib/models";
 
 function extractVideoId(input: string): string | null {
   const trimmed = input.trim();
-  // raw 11-char id
   if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
   try {
     const url = new URL(trimmed);
@@ -68,11 +67,31 @@ const LENGTH_INSTRUCTIONS: Record<Length, string> = {
     "Write a thorough breakdown: a short overview, then section headings (## ) grouping related ideas, with bullet points under each. Include nuances, examples, and any numbered lists the speaker presents. Aim for ~700 words.",
 };
 
+function buildSummarySystem(length: Length, detectedLang: string | null, customInstructions?: string | null) {
+  return `You are an expert video summarizer.
+LANGUAGE RULES (CRITICAL):
+- Detect the language of the transcript.
+- If the transcript is in English, Spanish, Catalan, or French, write the ENTIRE summary in THAT SAME language. Never switch to another language.
+- If the transcript is in any other language, write the summary in English.
+- Never translate between English / Spanish / Catalan / French — preserve the source language exactly.
+- Transcript language hint (may be missing or inaccurate — trust the actual transcript text): ${detectedLang ?? "unknown"}.
+STRUCTURE:
+- Length & structure: ${LENGTH_INSTRUCTIONS[length]}
+- Use clear Markdown formatting. When the video presents a list (top N, steps, tips, reasons), render it as a Markdown list — use a numbered list (1. 2. 3.) when order matters or when the speaker explicitly numbers items, otherwise use bullets (- ). Use "## " section headings to group related points when helpful.
+- No preamble like "Here is the summary".
+${
+  customInstructions && customInstructions.trim()
+    ? `\nUSER CUSTOM INSTRUCTIONS (apply when compatible with the rules above):\n"${customInstructions.trim().slice(0, 800)}"`
+    : ""
+}`;
+}
+
 export const summarizeVideo = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       url: z.string().min(1).max(500),
       length: z.enum(LENGTHS).default("standard"),
+      customInstructions: z.string().max(800).optional(),
     }),
   )
   .handler(async ({ data }) => {
@@ -81,7 +100,6 @@ export const summarizeVideo = createServerFn({ method: "POST" })
       throw new Error("Could not parse a YouTube video ID from that input.");
     }
 
-    // Fetch the video title in parallel (oEmbed is public, no key needed)
     const titlePromise = fetch(
       `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
     )
@@ -97,7 +115,7 @@ export const summarizeVideo = createServerFn({ method: "POST" })
         /disabled|blocked|429|403|captcha|too many requests/i.test(msg);
       if (blocked) {
         throw new Error(
-          "YouTube is temporarily blocking transcript requests from our server. This usually clears up in a few minutes — try again shortly, or try a different video. (You can also try the in-browser fallback if available.)",
+          "YouTube is temporarily blocking transcript requests from our server. This usually clears up in a few minutes — try again shortly, or try the in-browser fallback.",
         );
       }
       throw new Error(
@@ -118,25 +136,13 @@ export const summarizeVideo = createServerFn({ method: "POST" })
       .replace(/\s+/g, " ")
       .trim();
 
-    // Cap transcript size to keep token usage sane
     const MAX_CHARS = 60_000;
     const truncated = transcript.length > MAX_CHARS;
     const transcriptForAI = truncated ? transcript.slice(0, MAX_CHARS) : transcript;
 
     const detectedLang = segments.find((s) => s.lang)?.lang ?? null;
 
-    const system = `You are an expert video summarizer.
-LANGUAGE RULES (CRITICAL):
-- Detect the language of the transcript.
-- If the transcript is in English, Spanish, Catalan, or French, write the ENTIRE summary in THAT SAME language. Never switch to another language.
-- If the transcript is in any other language, write the summary in English.
-- Never translate between English / Spanish / Catalan / French — preserve the source language exactly.
-- Transcript language hint (from YouTube, may be missing or inaccurate — trust the actual transcript text over this): ${detectedLang ?? "unknown"}.
-STRUCTURE:
-- Length & structure: ${LENGTH_INSTRUCTIONS[data.length]}
-- Use clear Markdown formatting. When the video presents a list (top N, steps, tips, reasons), render it as a Markdown list — use a numbered list (1. 2. 3.) when order matters or when the speaker explicitly numbers items, otherwise use bullets (- ). Use "## " section headings to group related points when helpful.
-- No preamble like "Here is the summary".`;
-
+    const system = buildSummarySystem(data.length, detectedLang, data.customInstructions);
     const user = `Summarize this YouTube video transcript${
       truncated ? " (note: transcript was truncated to fit)" : ""
     }:
@@ -209,8 +215,6 @@ export const translateSummary = createServerFn({ method: "POST" })
     return { translated };
   });
 
-// Summarize from a transcript fetched on the client (e.g. via a CORS proxy)
-// when the server-side YouTube fetch is blocked.
 export const summarizeWithTranscript = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
@@ -220,6 +224,7 @@ export const summarizeWithTranscript = createServerFn({ method: "POST" })
       title: z.string().max(300).nullable().optional(),
       author: z.string().max(200).nullable().optional(),
       detectedLang: z.string().max(16).nullable().optional(),
+      customInstructions: z.string().max(800).optional(),
     }),
   )
   .handler(async ({ data }) => {
@@ -228,17 +233,7 @@ export const summarizeWithTranscript = createServerFn({ method: "POST" })
     const truncated = cleaned.length > MAX_CHARS;
     const transcriptForAI = truncated ? cleaned.slice(0, MAX_CHARS) : cleaned;
 
-    const system = `You are an expert video summarizer.
-LANGUAGE RULES (CRITICAL):
-- Detect the language of the transcript.
-- If the transcript is in English, Spanish, Catalan, or French, write the ENTIRE summary in THAT SAME language. Never switch.
-- If the transcript is in any other language, write the summary in English.
-- Transcript language hint: ${data.detectedLang ?? "unknown"}.
-STRUCTURE:
-- Length & structure: ${LENGTH_INSTRUCTIONS[data.length]}
-- Use clear Markdown. Use lists for enumerations, "## " headings to group ideas.
-- No preamble like "Here is the summary".`;
-
+    const system = buildSummarySystem(data.length, data.detectedLang ?? null, data.customInstructions);
     const user = `Summarize this YouTube video transcript${
       truncated ? " (note: transcript was truncated)" : ""
     }:\n\n${transcriptForAI}`;
@@ -259,3 +254,57 @@ STRUCTURE:
       truncated,
     };
   });
+
+// Global summary across multiple videos. Inputs are either pre-generated
+// per-video summaries (default — fast/cheap) or full transcripts (deeper).
+export const summarizeMany = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      items: z
+        .array(
+          z.object({
+            title: z.string().max(300).nullable().optional(),
+            content: z.string().min(1).max(80_000),
+          }),
+        )
+        .min(2)
+        .max(20),
+      mode: z.enum(["summaries", "transcripts"]).default("summaries"),
+      length: z.enum(LENGTHS).default("standard"),
+      customInstructions: z.string().max(800).optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const blocks = data.items
+      .map((it, i) => `--- VIDEO ${i + 1}${it.title ? `: ${it.title}` : ""} ---\n${it.content}`)
+      .join("\n\n");
+
+    // Cap combined size
+    const MAX = 90_000;
+    const capped = blocks.length > MAX ? blocks.slice(0, MAX) : blocks;
+
+    const system = `You are an expert at synthesizing information across multiple videos.
+You are given ${data.mode === "summaries" ? "individual summaries" : "raw transcripts"} of ${data.items.length} videos.
+Produce a GLOBAL synthesis — not a list of per-video summaries. Identify:
+- common themes that recur across videos,
+- contradictions or differing perspectives,
+- the overall picture a viewer should take away.
+${LENGTH_INSTRUCTIONS[data.length]}
+Use Markdown with "## " section headings. Write in English unless ALL inputs are in the same non-English supported language (English/Spanish/Catalan/French), in which case use that language.
+${
+  data.customInstructions && data.customInstructions.trim()
+    ? `\nUSER CUSTOM INSTRUCTIONS:\n"${data.customInstructions.trim().slice(0, 800)}"`
+    : ""
+}
+No preamble like "Here is the synthesis".`;
+
+    const user = `Synthesize these ${data.items.length} videos:\n\n${capped}`;
+
+    const summary = await callLovableAI([
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ]);
+
+    return { summary };
+  });
+

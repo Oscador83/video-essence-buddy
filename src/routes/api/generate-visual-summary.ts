@@ -31,11 +31,10 @@ export const Route = createFileRoute("/api/generate-visual-summary")({
 Use a clean light background, dark text, and one accent color. The diagram must be self-explanatory at a glance — no decorative illustration, focus on conveying the structure of ideas. Keep ALL text in the diagram in English, short, and legible.
 
 Video summary to visualize:
-${summary.slice(0, 4000)}`;
+${summary.slice(0, 2000)}`;
 
-        const upstream = await fetch(
-          "https://ai.gateway.lovable.dev/v1/images/generations",
-          {
+        const callUpstream = () =>
+          fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
             method: "POST",
             headers: {
               Authorization: `Bearer ${key}`,
@@ -49,14 +48,27 @@ ${summary.slice(0, 4000)}`;
               stream: true,
               partial_images: 2,
             }),
-          },
-        );
+          });
+
+        let upstream = await callUpstream();
+        // One automatic retry on timeout-class errors.
+        if (
+          (upstream.status === 504 ||
+            upstream.status === 502 ||
+            upstream.status === 408) &&
+          !upstream.body
+        ) {
+          await new Promise((r) => setTimeout(r, 2000));
+          upstream = await callUpstream();
+        }
 
         if (!upstream.ok || !upstream.body) {
           const text = await upstream.text().catch(() => "");
-          return new Response(text || "Image generation failed", {
-            status: upstream.status,
-          });
+          const friendly =
+            upstream.status === 504 || upstream.status === 502 || upstream.status === 408
+              ? "The image service timed out. Try again, or use a lighter detail level. (This is not a daily quota.)"
+              : text || "Image generation failed";
+          return new Response(friendly, { status: upstream.status });
         }
 
         return new Response(upstream.body, {
