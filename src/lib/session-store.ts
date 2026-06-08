@@ -29,6 +29,7 @@ export type Card = {
   visualFinal: boolean;
   visualError: string | null;
   chat: ChatMsg[];
+  createdAt: number;
 };
 
 export type GlobalSection = {
@@ -44,23 +45,34 @@ export type GlobalSection = {
   useTranscripts: boolean;
 };
 
+export type InputDraft = {
+  url: string;
+  length: Length;
+  customInstructions: string;
+};
+
 export type Session = {
   v: 1;
   autoSummarize: boolean;
   multiMode: boolean;
   theme: "light" | "dark";
   targetLang: string;
+  input: InputDraft;
   cards: Card[];
   global: GlobalSection | null;
 };
 
 const KEY = "osvidsum:session:v1";
 
-export function makeEmptyCard(): Card {
+function newId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+}
+
+export function makeFilledCard(init: Partial<Card> & { id?: string }): Card {
   return {
-    id: typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : Math.random().toString(36).slice(2),
+    id: init.id ?? newId(),
     url: "",
     length: "standard",
     customInstructions: "",
@@ -81,6 +93,8 @@ export function makeEmptyCard(): Card {
     visualFinal: false,
     visualError: null,
     chat: [],
+    createdAt: Date.now(),
+    ...init,
   };
 }
 
@@ -106,7 +120,8 @@ export function defaultSession(): Session {
     multiMode: false,
     theme: "light",
     targetLang: "English",
-    cards: [makeEmptyCard()],
+    input: { url: "", length: "standard", customInstructions: "" },
+    cards: [],
     global: null,
   };
 }
@@ -117,9 +132,24 @@ export function loadSession(): Session {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaultSession();
     const parsed = JSON.parse(raw) as Session;
-    if (parsed?.v !== 1 || !Array.isArray(parsed.cards) || parsed.cards.length === 0) {
+    if (parsed?.v !== 1 || !Array.isArray(parsed.cards)) {
       return defaultSession();
     }
+    // Reset transient loading states from a previous session
+    parsed.cards = parsed.cards.map((c) => ({
+      ...c,
+      textStatus: c.text ? "done" : "idle",
+      visualStatus: c.visualFinal ? "done" : c.visualSrc ? "done" : "idle",
+    }));
+    if (parsed.global) {
+      parsed.global.status = parsed.global.summary ? "done" : "idle";
+      parsed.global.visualStatus = parsed.global.visualFinal
+        ? "done"
+        : parsed.global.visualSrc
+          ? "done"
+          : "idle";
+    }
+    if (!parsed.input) parsed.input = { url: "", length: "standard", customInstructions: "" };
     return parsed;
   } catch {
     return defaultSession();
@@ -134,13 +164,23 @@ export function saveSession(s: Session) {
     try {
       localStorage.setItem(KEY, JSON.stringify(s));
     } catch {
-      // Likely quota — fall back to a slimmed-down version dropping images.
+      // Quota exceeded — drop generated images.
       try {
         const slim: Session = {
           ...s,
-          cards: s.cards.map((c) => ({ ...c, visualSrc: null, visualStatus: "idle", visualFinal: false })),
+          cards: s.cards.map((c) => ({
+            ...c,
+            visualSrc: null,
+            visualStatus: "idle",
+            visualFinal: false,
+          })),
           global: s.global
-            ? { ...s.global, visualSrc: null, visualStatus: "idle", visualFinal: false }
+            ? {
+                ...s.global,
+                visualSrc: null,
+                visualStatus: "idle",
+                visualFinal: false,
+              }
             : null,
         };
         localStorage.setItem(KEY, JSON.stringify(slim));
