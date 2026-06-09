@@ -909,13 +909,19 @@ function InputCard({
   showResetAll: boolean;
   compact?: boolean;
 }) {
-  const { url, length, customInstructions } = session.input;
+  const { length, customInstructions } = session.input;
+  const [localUrl, setLocalUrl] = useState("");
+  const url = compact ? localUrl : session.input.url;
   const [dragOver, setDragOver] = useState(false);
-  const setUrl = (u: string) => updateSession((s) => ({ ...s, input: { ...s.input, url: u } }));
+  const setUrl = (u: string) => {
+    if (compact) setLocalUrl(u);
+    else updateSession((s) => ({ ...s, input: { ...s.input, url: u } }));
+  };
   const setLength = (l: Length) =>
     updateSession((s) => ({ ...s, input: { ...s.input, length: l } }));
   const setCustom = (c: string) =>
     updateSession((s) => ({ ...s, input: { ...s.input, customInstructions: c } }));
+
 
   const trySubmit = () => {
     const u = url.trim();
