@@ -1416,9 +1416,10 @@ function SummaryCardView({
                 className="h-10 w-16 flex-shrink-0 rounded object-cover"
               />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-foreground">
+                <div className="truncate text-sm font-semibold text-foreground" title={card.title ?? ""}>
                   {card.title ?? "YouTube video"}
                 </div>
+
                 {card.author && (
                   <div className="truncate text-xs text-muted-foreground">{card.author}</div>
                 )}
