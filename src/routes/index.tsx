@@ -1045,26 +1045,55 @@ function InputCard({
             </div>
 
             <div className="ml-auto flex items-center gap-2">
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={session.autoSummarize}
-                  onChange={(e) =>
-                    updateSession((s) => ({ ...s, autoSummarize: e.target.checked }))
-                  }
-                  className="h-3.5 w-3.5"
-                />
-                Auto-summarize on paste/drop
-              </label>
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={session.multiMode}
-                  onChange={onToggleMulti}
-                  className="h-3.5 w-3.5"
-                />
-                Multi-summary
-              </label>
+              <button
+                type="button"
+                onClick={() =>
+                  updateSession((s) => ({ ...s, autoSummarize: !s.autoSummarize }))
+                }
+                title={
+                  session.autoSummarize
+                    ? "Auto-summarize on paste/drop: ON"
+                    : "Auto-summarize on paste/drop: OFF"
+                }
+                aria-pressed={session.autoSummarize}
+                className={`flex cursor-pointer items-center justify-center rounded-lg border p-1.5 transition ${
+                  session.autoSummarize
+                    ? "border-transparent text-white shadow-sm"
+                    : "border-border bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+                style={
+                  session.autoSummarize
+                    ? { backgroundColor: "var(--brand-gold)" }
+                    : undefined
+                }
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill={session.autoSummarize ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={onToggleMulti}
+                title={
+                  session.multiMode
+                    ? "Multi-summary mode: ON"
+                    : "Multi-summary mode: OFF"
+                }
+                aria-pressed={session.multiMode}
+                className={`flex cursor-pointer items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition ${
+                  session.multiMode
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : "border-border bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                  <polyline points="2 17 12 22 22 17" />
+                  <polyline points="2 12 12 17 22 12" />
+                </svg>
+                Multi
+              </button>
+
 
               <div className="relative" data-history-menu>
                 <button
