@@ -1859,6 +1859,109 @@ function ChatPanel({
   );
 }
 
+// ============ ChatMessages (collapsible history) ============
+function ChatMessages({ chat }: { chat: ChatMsg[] }) {
+  // Latest "exchange" = trailing assistant + the user msg right before it,
+  // OR just the trailing user msg if still waiting for a reply.
+  const latestStart = useMemo(() => {
+    if (chat.length === 0) return 0;
+    const last = chat[chat.length - 1];
+    if (last.role === "assistant" && chat.length >= 2 && chat[chat.length - 2].role === "user") {
+      return chat.length - 2;
+    }
+    return chat.length - 1;
+  }, [chat]);
+
+  const oldCount = latestStart;
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [allOpen, setAllOpen] = useState(false);
+
+  const toggle = (i: number) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+      {oldCount > 0 && (
+        <div className="flex items-center justify-between pb-1 text-[11px] text-muted-foreground">
+          <span>
+            {oldCount} earlier message{oldCount === 1 ? "" : "s"}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (allOpen) {
+                setExpanded(new Set());
+                setAllOpen(false);
+              } else {
+                setExpanded(new Set(Array.from({ length: oldCount }, (_, i) => i)));
+                setAllOpen(true);
+              }
+            }}
+            className="cursor-pointer underline-offset-2 hover:text-foreground hover:underline"
+          >
+            {allOpen ? "Collapse all" : "Expand all"}
+          </button>
+        </div>
+      )}
+      {chat.map((m, i) => {
+        const isOld = i < latestStart;
+        const isOpen = !isOld || expanded.has(i);
+        if (isOld && !isOpen) {
+          const preview = m.content.replace(/\s+/g, " ").trim().slice(0, 90);
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => toggle(i)}
+              className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition hover:bg-card hover:text-foreground"
+              title="Click to expand"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider">
+                {m.role === "user" ? "You" : "AI"}
+              </span>
+              <span className="truncate">{preview}</span>
+            </button>
+          );
+        }
+        return (
+          <div
+            key={i}
+            className={`rounded-lg px-3 py-2 text-sm ${
+              m.role === "user" ? "bg-primary/10 text-foreground" : "bg-card text-foreground"
+            }`}
+          >
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {m.role === "user" ? "You" : "AI"}
+              </span>
+              {isOld && (
+                <button
+                  type="button"
+                  onClick={() => toggle(i)}
+                  className="cursor-pointer text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  Collapse
+                </button>
+              )}
+            </div>
+            <div className="prose-sm text-[0.9rem] leading-relaxed [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ============ GlobalSectionView ============
 function GlobalSectionView({
   global,
