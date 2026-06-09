@@ -1445,8 +1445,12 @@ function SummaryCardView({
             {canRemove && (
               <button
                 type="button"
-                onClick={removeCard}
-                title="Remove this card"
+                onClick={() => {
+                  const hasWork = card.chat.length > 0 || !!card.visualSrc;
+                  if (hasWork && !confirm("Remove this summary (chat / image will be lost)?")) return;
+                  removeCard();
+                }}
+                title="Remove this summary"
                 className="cursor-pointer rounded-md p-2 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1455,6 +1459,7 @@ function SummaryCardView({
                 </svg>
               </button>
             )}
+
           </div>
           {card.videoOpen && (
             <div className="border-t border-border bg-muted">
