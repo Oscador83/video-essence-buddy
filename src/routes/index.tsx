@@ -1011,7 +1011,8 @@ function InputCard({
       }
     }
   };
-        if (session.autoSummarize) {
+
+
 
 
 
