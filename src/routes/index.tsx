@@ -976,7 +976,11 @@ function InputCard({
     if (vid) {
       e.preventDefault();
       setUrl(pasted);
-      setTimeout(() => onSubmit({ url: pasted, length, customInstructions }), 10);
+      setTimeout(() => {
+        onSubmit({ url: pasted, length, customInstructions });
+        // In compact (bottom) box, immediately clear so the next paste starts blank.
+        if (compact) setLocalUrl("");
+      }, 10);
     }
   };
 
