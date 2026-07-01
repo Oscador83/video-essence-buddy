@@ -609,6 +609,11 @@ function Index() {
     }
   }, [session, summarizeManyFn, updateGlobal]);
 
+  const stopGlobalSummary = useCallback(() => {
+    globalCancelRef.current.text = true;
+    updateGlobal({ status: session.global?.summary ? "stale" : "idle" });
+  }, [session.global?.summary, updateGlobal]);
+
   // ============ Card actions ============
   const removeCard = useCallback(
     (id: string) => {
