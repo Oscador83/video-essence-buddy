@@ -1296,6 +1296,7 @@ function SummaryCardView({
   updateCard,
   removeCard,
   canRemove,
+  compactBlockedError,
   onRegenerate,
   onStop,
   onFallback,
