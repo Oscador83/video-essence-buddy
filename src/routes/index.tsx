@@ -1315,6 +1315,7 @@ function SummaryCardView({
   updateCard: (p: Partial<Card>) => void;
   removeCard: () => void;
   canRemove: boolean;
+  compactBlockedError?: boolean;
   onRegenerate: () => void;
   onStop: () => void;
   onFallback: () => void;
