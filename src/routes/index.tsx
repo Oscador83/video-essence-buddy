@@ -1379,8 +1379,49 @@ function SummaryCardView({
 
   // Error state
   if (card.textStatus === "error") {
+    // Compact one-liner when a top banner is already showing this same blocked-transcript error.
+    if (compactBlockedError) {
+      return (
+        <section
+          data-card-id={card.id}
+          className="flex items-center justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        >
+          <span className="truncate" title={card.url}>
+            <span className="opacity-70">Blocked · </span>
+            {card.url}
+          </span>
+          <span className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={onFallback}
+              disabled={fallbackBusy}
+              className="cursor-pointer rounded-md border border-destructive/30 px-2 py-1 text-[11px] font-medium hover:bg-destructive/10 disabled:opacity-60"
+            >
+              {fallbackBusy ? "Fetching…" : "Fallback"}
+            </button>
+            <button
+              type="button"
+              onClick={onRegenerate}
+              className="cursor-pointer rounded-md border border-destructive/30 px-2 py-1 text-[11px] font-medium hover:bg-destructive/10"
+            >
+              Retry
+            </button>
+            {canRemove && (
+              <button
+                type="button"
+                onClick={removeCard}
+                title="Remove"
+                className="cursor-pointer rounded-md px-1.5 text-destructive/70 hover:text-destructive"
+              >
+                ✕
+              </button>
+            )}
+          </span>
+        </section>
+      );
+    }
     return (
-      <section className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+      <section data-card-id={card.id} className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">{card.textError}</div>
           {canRemove && (
