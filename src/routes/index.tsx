@@ -712,9 +712,18 @@ function Index() {
   const showGlobal = session.multiMode && session.cards.length >= 2;
   const anyCardLoading = session.cards.some((c) => c.textStatus === "loading");
 
+  // Dedup transcript-block errors in multi-mode: if ≥ 2 cards have the same
+  // blocked-transcript error, show a single top banner instead of N red boxes.
+  const blockedRe = /blocking|disabled|temporarily|captcha|too many|transcript is disabled/i;
+  const blockedCards = session.cards.filter(
+    (c) => c.textStatus === "error" && blockedRe.test(c.textError ?? ""),
+  );
+  const dedupBlocked = session.multiMode && blockedCards.length >= 2;
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div ref={topRef} className="mx-auto max-w-4xl space-y-6 px-4 py-6 md:py-8">
+
         {showModelReminder && (
           <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/60 px-4 py-3 text-sm">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0 text-muted-foreground">
