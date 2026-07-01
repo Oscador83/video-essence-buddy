@@ -1257,7 +1257,8 @@ function InputCard({
           </div>
         )}
 
-        {!compact && (
+        {(
+
           <details className="text-xs">
             <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground">
               Custom instructions (optional)
