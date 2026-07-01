@@ -150,6 +150,8 @@ export function loadSession(): Session {
           : "idle";
     }
     if (!parsed.input) parsed.input = { url: "", length: "standard", customInstructions: "" };
+    // Multi-summary should always start OFF unless the user has ≥ 2 cards already.
+    if (parsed.cards.length < 2) parsed.multiMode = false;
     return parsed;
   } catch {
     return defaultSession();
