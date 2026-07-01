@@ -2062,18 +2062,26 @@ function GlobalSectionView({
             />
             Use full transcripts (deeper, slower)
           </label>
-          <button
-            type="button"
-            onClick={onGenerate}
-            disabled={global.status === "loading"}
-            className="cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
-          >
-            {global.status === "loading"
-              ? "Generating…"
-              : global.summary
-                ? "Regenerate"
-                : "Generate"}
-          </button>
+          {global.status === "loading" ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+            >
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              Stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onGenerate}
+              className="cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:brightness-110"
+            >
+              {global.summary ? "Regenerate" : "Generate"}
+            </button>
+          )}
           {global.summary && (
             <button
               type="button"
