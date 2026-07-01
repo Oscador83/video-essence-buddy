@@ -1012,12 +1012,8 @@ function InputCard({
     }
   };
         if (session.autoSummarize) {
-          setTimeout(() => onSubmit({ url: clean, length, customInstructions }), 10);
-        }
-        return;
-      }
-    }
-  };
+
+
 
 
   return (
