@@ -779,6 +779,21 @@ function Index() {
           showResetAll={session.cards.length > 0}
         />
 
+        {/* Dedup banner for transcript-blocked errors in multi-mode */}
+        {dedupBlocked && (
+          <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <div className="flex-1">
+              YouTube blocked <strong>{blockedCards.length}</strong> transcript requests. This is
+              usually temporary — try again in a few minutes, or use the in-browser fallback on
+              each card below.
+            </div>
+          </div>
+        )}
+
         {/* ============ Filled cards ============ */}
         {session.cards.map((card) => (
           <SummaryCardView
@@ -789,6 +804,11 @@ function Index() {
             updateCard={(p) => updateCard(card.id, p)}
             removeCard={() => removeCard(card.id)}
             canRemove={session.multiMode}
+            compactBlockedError={
+              dedupBlocked &&
+              card.textStatus === "error" &&
+              blockedRe.test(card.textError ?? "")
+            }
             onRegenerate={() =>
               runSummarize({
                 url: card.url,
@@ -816,6 +836,7 @@ function Index() {
             global={session.global}
             updateGlobal={updateGlobal}
             onGenerate={runGlobalSummary}
+            onStop={stopGlobalSummary}
             onGenerateVisual={(d) => generateVisual("global", d)}
             onSendChat={(t) => sendChat("global", t)}
             onSave={saveGlobalHtml}
