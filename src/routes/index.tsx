@@ -2020,6 +2020,7 @@ function GlobalSectionView({
   global,
   updateGlobal,
   onGenerate,
+  onStop,
   onGenerateVisual,
   onSendChat,
   onSave,
@@ -2029,6 +2030,7 @@ function GlobalSectionView({
   global: GlobalSection;
   updateGlobal: (p: Partial<GlobalSection>) => void;
   onGenerate: () => void;
+  onStop: () => void;
   onGenerateVisual: (d: Detail) => void;
   onSendChat: (text: string) => void;
   onSave: () => void;
