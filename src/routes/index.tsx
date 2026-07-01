@@ -279,10 +279,12 @@ function Index() {
           textError: null,
         });
         pushHistory({ url, videoId: result.videoId, title: result.title });
-        setTimeout(
-          () => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-          100,
-        );
+        setTimeout(() => {
+          const el = document.querySelector(
+            `[data-card-id="${targetId}"]`,
+          ) as HTMLElement | null;
+          (el ?? topRef.current)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 120);
       } catch (err) {
         if (cancelFlags.current.get(targetId)) return;
         const msg = err instanceof Error ? err.message : String(err);
@@ -607,6 +609,11 @@ function Index() {
     }
   }, [session, summarizeManyFn, updateGlobal]);
 
+  const stopGlobalSummary = useCallback(() => {
+    globalCancelRef.current.text = true;
+    updateGlobal({ status: session.global?.summary ? "stale" : "idle" });
+  }, [session.global?.summary, updateGlobal]);
+
   // ============ Card actions ============
   const removeCard = useCallback(
     (id: string) => {
@@ -705,9 +712,18 @@ function Index() {
   const showGlobal = session.multiMode && session.cards.length >= 2;
   const anyCardLoading = session.cards.some((c) => c.textStatus === "loading");
 
+  // Dedup transcript-block errors in multi-mode: if ≥ 2 cards have the same
+  // blocked-transcript error, show a single top banner instead of N red boxes.
+  const blockedRe = /blocking|disabled|temporarily|captcha|too many|transcript is disabled/i;
+  const blockedCards = session.cards.filter(
+    (c) => c.textStatus === "error" && blockedRe.test(c.textError ?? ""),
+  );
+  const dedupBlocked = session.multiMode && blockedCards.length >= 2;
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div ref={topRef} className="mx-auto max-w-4xl space-y-6 px-4 py-6 md:py-8">
+
         {showModelReminder && (
           <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/60 px-4 py-3 text-sm">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0 text-muted-foreground">
@@ -763,6 +779,21 @@ function Index() {
           showResetAll={session.cards.length > 0}
         />
 
+        {/* Dedup banner for transcript-blocked errors in multi-mode */}
+        {dedupBlocked && (
+          <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <div className="flex-1">
+              YouTube blocked <strong>{blockedCards.length}</strong> transcript requests. This is
+              usually temporary — try again in a few minutes, or use the in-browser fallback on
+              each card below.
+            </div>
+          </div>
+        )}
+
         {/* ============ Filled cards ============ */}
         {session.cards.map((card) => (
           <SummaryCardView
@@ -773,6 +804,11 @@ function Index() {
             updateCard={(p) => updateCard(card.id, p)}
             removeCard={() => removeCard(card.id)}
             canRemove={session.multiMode}
+            compactBlockedError={
+              dedupBlocked &&
+              card.textStatus === "error" &&
+              blockedRe.test(card.textError ?? "")
+            }
             onRegenerate={() =>
               runSummarize({
                 url: card.url,
@@ -800,6 +836,7 @@ function Index() {
             global={session.global}
             updateGlobal={updateGlobal}
             onGenerate={runGlobalSummary}
+            onStop={stopGlobalSummary}
             onGenerateVisual={(d) => generateVisual("global", d)}
             onSendChat={(t) => sendChat("global", t)}
             onSave={saveGlobalHtml}
@@ -939,7 +976,11 @@ function InputCard({
     if (vid) {
       e.preventDefault();
       setUrl(pasted);
-      setTimeout(() => onSubmit({ url: pasted, length, customInstructions }), 10);
+      setTimeout(() => {
+        onSubmit({ url: pasted, length, customInstructions });
+        // In compact (bottom) box, immediately clear so the next paste starts blank.
+        if (compact) setLocalUrl("");
+      }, 10);
     }
   };
 
@@ -961,12 +1002,19 @@ function InputCard({
       if (vid) {
         setUrl(clean);
         if (session.autoSummarize) {
-          setTimeout(() => onSubmit({ url: clean, length, customInstructions }), 10);
+          setTimeout(() => {
+            onSubmit({ url: clean, length, customInstructions });
+            if (compact) setLocalUrl("");
+          }, 10);
         }
         return;
       }
     }
   };
+
+
+
+
 
 
   return (
@@ -1032,7 +1080,8 @@ function InputCard({
 
         </div>
 
-        {!compact && (
+        {(
+
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="font-medium text-muted-foreground">Length:</span>
             <div className="flex rounded-lg bg-muted p-1">
@@ -1208,7 +1257,8 @@ function InputCard({
           </div>
         )}
 
-        {!compact && (
+        {(
+
           <details className="text-xs">
             <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground">
               Custom instructions (optional)
@@ -1246,6 +1296,7 @@ function SummaryCardView({
   updateCard,
   removeCard,
   canRemove,
+  compactBlockedError,
   onRegenerate,
   onStop,
   onFallback,
@@ -1264,6 +1315,7 @@ function SummaryCardView({
   updateCard: (p: Partial<Card>) => void;
   removeCard: () => void;
   canRemove: boolean;
+  compactBlockedError?: boolean;
   onRegenerate: () => void;
   onStop: () => void;
   onFallback: () => void;
@@ -1307,7 +1359,7 @@ function SummaryCardView({
   // Loading state
   if (card.textStatus === "loading") {
     return (
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <section data-card-id={card.id} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
@@ -1327,8 +1379,49 @@ function SummaryCardView({
 
   // Error state
   if (card.textStatus === "error") {
+    // Compact one-liner when a top banner is already showing this same blocked-transcript error.
+    if (compactBlockedError) {
+      return (
+        <section
+          data-card-id={card.id}
+          className="flex items-center justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        >
+          <span className="truncate" title={card.url}>
+            <span className="opacity-70">Blocked · </span>
+            {card.url}
+          </span>
+          <span className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={onFallback}
+              disabled={fallbackBusy}
+              className="cursor-pointer rounded-md border border-destructive/30 px-2 py-1 text-[11px] font-medium hover:bg-destructive/10 disabled:opacity-60"
+            >
+              {fallbackBusy ? "Fetching…" : "Fallback"}
+            </button>
+            <button
+              type="button"
+              onClick={onRegenerate}
+              className="cursor-pointer rounded-md border border-destructive/30 px-2 py-1 text-[11px] font-medium hover:bg-destructive/10"
+            >
+              Retry
+            </button>
+            {canRemove && (
+              <button
+                type="button"
+                onClick={removeCard}
+                title="Remove"
+                className="cursor-pointer rounded-md px-1.5 text-destructive/70 hover:text-destructive"
+              >
+                ✕
+              </button>
+            )}
+          </span>
+        </section>
+      );
+    }
     return (
-      <section className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+      <section data-card-id={card.id} className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">{card.textError}</div>
           {canRemove && (
@@ -1401,7 +1494,7 @@ function SummaryCardView({
   if (!card.text) return null;
 
   return (
-    <section className="animate-fade-in space-y-4 pt-2">
+    <section data-card-id={card.id} className="animate-fade-in space-y-4 pt-2">
       {/* Video header */}
       {card.videoId && (
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -1968,6 +2061,7 @@ function GlobalSectionView({
   global,
   updateGlobal,
   onGenerate,
+  onStop,
   onGenerateVisual,
   onSendChat,
   onSave,
@@ -1977,6 +2071,7 @@ function GlobalSectionView({
   global: GlobalSection;
   updateGlobal: (p: Partial<GlobalSection>) => void;
   onGenerate: () => void;
+  onStop: () => void;
   onGenerateVisual: (d: Detail) => void;
   onSendChat: (text: string) => void;
   onSave: () => void;
@@ -2008,18 +2103,26 @@ function GlobalSectionView({
             />
             Use full transcripts (deeper, slower)
           </label>
-          <button
-            type="button"
-            onClick={onGenerate}
-            disabled={global.status === "loading"}
-            className="cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
-          >
-            {global.status === "loading"
-              ? "Generating…"
-              : global.summary
-                ? "Regenerate"
-                : "Generate"}
-          </button>
+          {global.status === "loading" ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+            >
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              Stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onGenerate}
+              className="cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:brightness-110"
+            >
+              {global.summary ? "Regenerate" : "Generate"}
+            </button>
+          )}
           {global.summary && (
             <button
               type="button"
