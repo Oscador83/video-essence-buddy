@@ -279,10 +279,12 @@ function Index() {
           textError: null,
         });
         pushHistory({ url, videoId: result.videoId, title: result.title });
-        setTimeout(
-          () => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-          100,
-        );
+        setTimeout(() => {
+          const el = document.querySelector(
+            `[data-card-id="${targetId}"]`,
+          ) as HTMLElement | null;
+          (el ?? topRef.current)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 120);
       } catch (err) {
         if (cancelFlags.current.get(targetId)) return;
         const msg = err instanceof Error ? err.message : String(err);
