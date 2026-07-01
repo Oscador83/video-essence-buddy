@@ -1002,6 +1002,16 @@ function InputCard({
       if (vid) {
         setUrl(clean);
         if (session.autoSummarize) {
+          setTimeout(() => {
+            onSubmit({ url: clean, length, customInstructions });
+            if (compact) setLocalUrl("");
+          }, 10);
+        }
+        return;
+      }
+    }
+  };
+        if (session.autoSummarize) {
           setTimeout(() => onSubmit({ url: clean, length, customInstructions }), 10);
         }
         return;
