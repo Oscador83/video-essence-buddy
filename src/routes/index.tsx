@@ -1359,7 +1359,7 @@ function SummaryCardView({
   // Loading state
   if (card.textStatus === "loading") {
     return (
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <section data-card-id={card.id} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
