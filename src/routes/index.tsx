@@ -1494,7 +1494,7 @@ function SummaryCardView({
   if (!card.text) return null;
 
   return (
-    <section className="animate-fade-in space-y-4 pt-2">
+    <section data-card-id={card.id} className="animate-fade-in space-y-4 pt-2">
       {/* Video header */}
       {card.videoId && (
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
