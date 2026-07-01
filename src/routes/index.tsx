@@ -1080,7 +1080,8 @@ function InputCard({
 
         </div>
 
-        {!compact && (
+        {(
+
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="font-medium text-muted-foreground">Length:</span>
             <div className="flex rounded-lg bg-muted p-1">
